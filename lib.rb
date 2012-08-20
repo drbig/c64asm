@@ -11,6 +11,8 @@ class C64Basic
     @code = parse
   end
 
+  def to_s; "<Basic: #{@basic.lines.to_a.length}>"; end
+
   private
   def parse
     code = AsmBlock.new
