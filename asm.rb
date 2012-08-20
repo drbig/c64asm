@@ -15,7 +15,7 @@ end
 
 class AsmOperandError < Exception; end
 class AsmOperand
-  attr_reader :op, :mode, :arg
+  attr_reader :op, :mode, :arg, :label
 
   def initialize(op, arg = false, mod = false)
     raise AsmOperandError, 'No such operand' unless AsmConsts::OPCODES.has_key? op
@@ -85,7 +85,6 @@ class AsmOperand
   end
 
   def ready?; @ready; end
-  def deferred?; @label; end
 
   def resolve(arg)
     return true unless @label
@@ -214,7 +213,7 @@ end
 class AsmNopError < Exception; end
 class AsmNop
   def ready?; true; end
-  def deferred?; false; end
+  def label; false; end
   def to_a; []; end
   def to_binary; ''; end
 end
@@ -247,7 +246,6 @@ class AsmAlign < AsmNop
   def to_s; "<Align: $#{@addr.to_s(16)}"; end
 end
 
-class AsmDataError < Exception; end
 class AsmData < AsmNop
   attr_reader :data, :mode, :length
 
@@ -312,7 +310,7 @@ class AsmData < AsmNop
       when :default
         @data.each_codepoint.to_a.collect{|p| C64Consts::PETSCII[p]}.pack('C*')
       when :screen
-        @data.each_codepoint.to_a.collect{|p| C64Consts::CHARMAP[p]}.pack('C*')
+        @data.upcase.each_codepoint.to_a.collect{|p| C64Consts::CHARMAP[p]}.pack('C*')
       end
     when Array
       case @mode
@@ -330,28 +328,123 @@ class AsmData < AsmNop
     when String
       case @mode
       when :default
-        @data.each_codepoint{|p| raise AsmDataError, 'Invalid data' unless C64Consts::PETSCII.has_key? p}
+        @data.each_codepoint{|p| raise AsmNopError, 'Invalid data' unless C64Consts::PETSCII.has_key? p}
       when :screen
-        @data.upcase!
-        @data.each_codepoint{|p| raise AsmDataError, 'Invalid data' unless C64Consts::CHARMAP.has_key? p}
+        @data.upcase.each_codepoint{|p| raise AsmNopError, 'Invalid data' unless C64Consts::CHARMAP.has_key? p}
       end
     when Array
       case @mode
       when :default
-        @data.each{|e| raise AsmDataError, 'Invalid data' unless (e >= 0 and e <= 255)}
+        @data.each{|e| raise AsmNopError, 'Invalid data' unless (e >= 0 and e <= 255)}
       when :word
-        @data.each{|e| raise AsmDataError, 'Invalid data' unless (e >= 0 and e <= 65535)}
+        @data.each{|e| raise AsmNopError, 'Invalid data' unless (e >= 0 and e <= 65535)}
       end
     end
   end
 end
 
+class AsmBlockError < Exception; end
 class AsmBlock < Array
-  def to_source
-    (['.block'] + self.collect{|e| e.to_source} + ['.bend']).flatten
+  attr_reader :labels, :linked
+
+  def initialize
+    @labels = {}
+    @linked = false
+    @chunks = {}
   end
 
-  def to_s; "<Block #{self.length}>"; end
+  def link(origin = 0x1000)
+    raise AsmBlockError, 'Invalid origin' unless (origin >= 0 and origin <= 65535)
+
+    endaddr = _linker_pass(origin, :one)
+    _linker_pass(origin, :two)
+
+    @linked
+  end
+
+  def to_source
+    (['.block'] + collect{|e| e.to_source} + ['.bend']).flatten
+  end
+
+  def to_s; "<Block #{length}>"; end
+
+  def to_binary
+    link unless @linked
+    [@linked[0].lsbyte, @linked[0].msbyte].pack('CC') + _binary_pass
+  end
+
+  def _binary_pass
+    binary = ''
+    each do |e|
+      case e
+      when AsmAlign
+        binary += ([0] * (e.addr - @chunks[e.addr])).pack('C*')
+      when AsmLabel
+        true
+      when AsmData
+        binary += e.to_binary
+      when AsmOperand
+        binary += e.to_binary
+      when AsmBlock
+        binary += e._binary_pass
+      end
+    end
+
+    binary
+  end
+ 
+  def _linker_pass(addr, pass)
+    @labels = {} if pass == :one
+    origin = addr
+
+    each do |e|
+      case e
+      when AsmAlign
+        raise AsmBlockError, "Unhandled alignment from #{addr} to #{e.addr}" if e.addr < addr
+        @chunks[e.addr] = addr if pass == :one
+        addr = e.addr
+      when AsmLabel
+        if pass == :one
+          if @labels.has_key? e.name
+            log :warn, "Redefinition of label #{e.name} from $#{@labels[e.name].to_s(16)} to $#{addr.to_s(16)}"
+          end
+
+          @labels[e.name] = addr
+        end
+      when AsmData
+        addr += e.length
+      when AsmOperand
+        if pass == :two
+          unless e.ready?
+            if e.label == :*
+              arg = addr
+            elsif @labels.has_key? e.label
+              arg = @labels[e.label]
+            else
+              log :error, "Can't resolve label for #{e.to_s}"
+              raise AsmBlockError
+            end
+
+            if e.mode == :r
+              arg = arg - addr -2
+            end
+
+            e.resolve(arg)
+          end
+        end
+
+        addr += e.length
+      when AsmBlock
+        addr = e._linker_pass(addr, pass)
+      else
+        log :error, "Unhandled element #{e.to_s} in AsmBlock"
+        raise AsmBlockError
+      end
+    end
+
+    @linked = [origin, addr] if pass == :one
+    addr
+  end
 end
 
 class AsmMacroError < Exception; end
@@ -359,21 +452,18 @@ class AsmMacro
   attr_reader :variables
 
   def initialize(vars = {}, &blk)
-    @code = AsmBlock.new
-    @labels = []
     @variables = vars
-    @vars = {}
-    @blocks = []
+    @procs = []
 
-    @blocks.push(blk) if blk
+    @procs.push(blk) if blk
   end
 
-  def add_code(&blk); @blocks.push(blk); end
+  def add_code(&blk); @procs.push(blk); end
 
-  def to_s; "<Macro #{@blocks.length} #{@variables.to_s}>"; end
+  def to_s; "<Macro #{@procs.length} #{@variables.to_s}>"; end
 
   def call(vars = {})
-    return [] if @blocks.empty?
+    return AsmBlock.new if @procs.empty?
 
     @code = AsmBlock.new
     @labels = []
@@ -385,28 +475,51 @@ class AsmMacro
     # merge variable hash
     @vars = @variables.merge(vars)
 
-    @blocks.each{|b| instance_eval(&b)}
+    @procs.each{|b| instance_eval(&b)}
     @code
   end
 
   private
   def align(addr)
-    @code.push(AsmAlign.new(addr))
+    begin
+      @code.push(AsmAlign.new(addr))
+    rescue AsmNopError => e
+      parse_error "Align instruction error: #{e.to_s}"
+    end
+    addr
   end
 
   def label(name)
     parse_warn "Redefinition of label #{name}" if @labels.member? name
+    begin
+      @code.push(AsmLabel.new(name))
+    rescue AsmNopError => e
+      parse_error "Label instruction error: #{e.to_s}"
+    end
     @labels.push(name)
-    @code.push(AsmLabel.new(name))
     name
   end
 
   def data(arg, mode = :default)
-    @code.push(AsmData.new(arg, mode))
+    begin
+      data = AsmData.new(arg, mode)
+      @code.push(data)
+    rescue AsmNopError => e
+      parse_error "Data instruction error: #{e.to_s}"
+    end
+    data.length
   end
 
-  def use(stuff)
+  def block(stuff)
+    parse_error 'Block not an instance of AsmBlock' unless stuff.instance_of? AsmBlock
     @code.push(stuff)
+    stuff.length
+  end
+
+  def insert(stuff)
+    parse_error 'Block not an instance of AsmBlock' unless stuff.instance_of? AsmBlock
+    @code += stuff
+    stuff.length
   end
 
   def method_missing(name, *args, &blk)
@@ -421,14 +534,14 @@ class AsmMacro
           op = AsmOperand.new(name, arg, mod)
         end
       rescue AsmOperandError => e
-        parse_error e.to_s
+        parse_error "Operand error: #{e.to_s}"
       end
       @code.push(op)
       op
     elsif @vars.has_key? name
       @vars[name]
     else
-      parse_error 'Method not found'
+      parse_error "Method :#{name} not found"
     end
   end
 
@@ -443,87 +556,4 @@ class AsmMacro
   end
 
   def parse_warn(msg); say :warn, msg; end
-end
-
-class AsmLinkerError < Exception; end
-module AsmLinker
-  def AsmLinker.link(block, addr = 0x1000, pass = :init)
-    raise AsmLinkerError, 'Invalid origin' unless (addr.instance_of? Fixnum and addr >= 0 and addr <= 65535)
-    raise AsmLinkerError, 'Invalid data' unless block.instance_of? AsmBlock
-
-    origin = addr
-    labels = {}
-    block.each do |e|
-      case e
-      when AsmAlign
-        addr = e.addr
-      when AsmLabel
-        labels[e.name] = addr
-      when AsmData
-        addr += e.length
-      when AsmOperand
-        addr += e.length
-      when AsmBlock
-        addr = link(e, addr, :first)
-      else
-        puts e
-        puts e.class
-        log :error, 'Unknown stuff in AsmBlock'
-        raise AsmLinkerError
-      end
-    end
-
-    return addr if pass == :first
-
-    binary = ''
-    addr = origin
-    block.each do |e|
-      case e
-      when AsmAlign
-        if e.addr > addr
-          binary += ([0] * (e.addr - addr)).pack('C*')
-        else
-          log :error, 'Misaligned chunk'
-          raise AsmLinkerError
-        end
-        addr = e.addr
-      when AsmLabel
-        true
-      when AsmData
-        binary += e.to_binary
-        addr += e.length
-      when AsmOperand
-        unless e.ready?
-          if e.deferred? == :*
-            arg = addr
-          elsif labels.has_key? e.deferred?
-            arg = labels[e.deferred?]
-          else
-            log :error, "Label resolution for #{e.to_s}"
-          end
-
-          if e.mode == :r
-            arg = arg - addr - 2
-          end
-
-          e.resolve(arg)
-        end
-
-        binary += e.to_binary
-        addr += e.length
-      when AsmBlock
-        data = link(e, addr, :second)
-        binary += data
-        addr += data.bytesize
-      else
-        log :error, 'Unknown stuff in AsmBlock'
-      end
-    end
-
-    if pass == :init
-      [origin.lsbyte, origin.msbyte].pack('C*') + binary
-    else
-      binary
-    end
-  end
 end

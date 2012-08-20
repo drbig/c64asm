@@ -76,23 +76,23 @@ demo = AsmMacro.new do
   lda     :rtr_int, :>
   sta     0x315
 
-  lda 0xd011
-  ane.d 0x7f
-  sta 0xd011
+  lda     0xd011
+  ane.d   0x7f
+  sta     0xd011
 
-  lda rbars
-  sta 0xd012
+  lda     rbars
+  sta     0xd012
 
   cli
 
-  label :start
+  label   :start
 
-  ldx.d 10
-  jsr :sub_wait
+  ldx.d   10
+  jsr     :sub_wait
 
-  label :barup
+  label   :barup
 
-  ldx.d 1
+  ldx.d   1
   jsr :sub_wait
 
   dec rbars
@@ -115,7 +115,8 @@ demo = AsmMacro.new do
   jmp :infloop
 
   label :textgun
-  use(AsmMacro.new do
+
+  block(AsmMacro.new do
     ldx.d endpos
     stx lineofs
     ldx.d charofs
@@ -228,7 +229,8 @@ demo = AsmMacro.new do
   end.call)
 
   label :sub_wait
-  use(AsmMacro.new do
+
+  block(AsmMacro.new do
     label :wl
 
     cpx counter
@@ -239,17 +241,19 @@ demo = AsmMacro.new do
   end.call)
 
   label :textdata
-  [ "#this is a test#",
+  [
+    "#this is a test#",
     "#",
     "of some data test#",
-    "test @ test.com 123#" ].each{|s| data s, :screen}
+    "test @ test.com 123#"
+  ].each{|s| data s, :screen}
   data [0xff]
 
   align   0x4000
 
   label :rtr_int
 
-  use(AsmMacro.new do
+  block(AsmMacro.new do
     ldx   0xd012
     inx
     stx   0xd012
@@ -309,4 +313,4 @@ demo = AsmMacro.new do
 end
 code = demo.call
 STDOUT.puts(code.to_source.join("\n"))
-STDERR.write(AsmLinker.link(code))
+STDERR.write(code.to_binary)
