@@ -373,6 +373,49 @@ class AsmBlock < Array
     [@linked[0].lsbyte, @linked[0].msbyte].pack('CC') + _binary_pass
   end
 
+  def dump
+    link unless @linked
+    lines = _dump
+    lines.shift
+    lines
+  end
+
+  def _dump
+    addr = @linked.first
+    lines = []
+
+    lines.push('$%0.4x   ' % addr +  "           \t.block")
+    each do |e|
+      line = ('$%0.4x   ' % addr).upcase
+      block = false
+
+      case e
+      when AsmOperand
+        line += e.to_a.collect{|e| '%0.2x' % e}.join(' ').upcase
+        line += ' ' * (9 - (3 * e.length))
+        line += "   \t#{e.to_source}"
+        addr += e.length
+      when AsmAlign
+        line += "           \t#{e.to_source}"
+        addr = e.addr
+      when AsmLabel
+        line += "           #{e.to_source}"
+      when AsmData
+        line += ".. .. ..   \t#{e.to_source}"
+        addr += e.length
+      when AsmBlock
+        addr, _lines = e._dump
+        lines += _lines
+        block = true
+      end
+
+      lines.push(line) unless block
+    end
+    lines.push('$%0.4x   ' % addr +  "           \t.bend")
+
+    [addr, lines]
+  end
+
   def _binary_pass
     binary = ''
     each do |e|

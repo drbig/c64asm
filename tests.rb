@@ -16,6 +16,7 @@ load 'asm.rb'
 #  data "HELLO WORLD#"
 #end
 #code = hello_world.call
+#puts code.dump.join("\n")
 #puts code.to_source.join("\n")
 #STDOUT.write(AsmLinker.link(code))
 
@@ -312,5 +313,6 @@ demo = AsmMacro.new do
   end.call)
 end
 code = demo.call
+#puts code.dump.join("\n")
 STDOUT.puts(code.to_source.join("\n"))
 STDERR.write(code.to_binary)
