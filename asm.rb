@@ -356,6 +356,15 @@ class AsmBlock < Array
   def link(origin = 0x1000)
     raise AsmBlockError, 'Invalid origin' unless (origin >= 0 and origin <= 65535)
 
+    # override origin if first non-AsmBlock element is an AsmAlign object
+    felem = first
+    while felem.class == AsmBlock
+      felem = felem.first
+    end
+    if felem.instance_of? AsmAlign
+      origin = felem.addr
+    end
+    
     endaddr = _linker_pass(origin, :one)
     _linker_pass(origin, :two)
 
@@ -378,6 +387,21 @@ class AsmBlock < Array
     lines = _dump
     lines.shift
     lines
+  end
+
+  def write!(fname, mode = 'w', what = :prg)
+    File.open(fname, mode) do |fd|
+      case what
+      when :prg
+        fd.write(to_binary)
+      when :src
+        fd.write(to_source.join("\n"))
+      when :dump
+        fd.write(dump.join("\n"))
+      else
+        raise AsmBlockError, 'Unknown generation mode'
+      end
+    end
   end
 
   def _dump
@@ -448,7 +472,8 @@ class AsmBlock < Array
     each do |e|
       case e
       when AsmAlign
-        raise AsmBlockError, "Unhandled alignment from #{addr} to #{e.addr}" if e.addr < addr
+        raise AsmBlockError, "Unhandled alignment from $#{addr.to_s(16)} to $#{e.addr.to_s(16)}" if e.addr < addr
+
         @chunks[e.addr] = addr if pass == :one
         addr = e.addr
       when AsmLabel
