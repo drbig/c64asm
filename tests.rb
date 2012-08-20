@@ -1,4 +1,4 @@
-load 'asm.rb'
+load 'lib.rb'
 
 #hello_world = AsmMacro.new do
 #  jsr 0xe544 # clear
@@ -21,6 +21,10 @@ load 'asm.rb'
 #STDOUT.write(AsmLinker.link(code))
 
 demo = AsmMacro.new do
+  block C64Basic.new('10 sys 4096').code
+
+  align 0x1000
+
   charofs = 39
   endpos = 16
   scol = 0

@@ -57,3 +57,14 @@ end
 
 puts 'PETSCII = '
 pp(petscii, width = 120)
+
+# for basic tokens
+#tokens = {}
+#STDIN.each_line do |l|
+#  code, *rest = l.split(' ')
+#  byte = code.split('/').first
+#  name = rest.first.split(' ').first
+#  tokens[name] = byte.to_i
+#end
+#
+#pp(tokens, width=120)
