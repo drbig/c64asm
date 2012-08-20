@@ -391,7 +391,12 @@ class AsmBlock < Array
 
       case e
       when AsmOperand
-        line += e.to_a.collect{|e| '%0.2x' % e}.join(' ').upcase
+        if e.mode == :r
+          bytes = e.to_a.pack('Cc').unpack('C*')
+        else
+          bytes = e.to_a
+        end
+        line += bytes.to_a.collect{|e| '%0.2X' % e}.join(' ')
         line += ' ' * (9 - (3 * e.length))
         line += "   \t#{e.to_source}"
         addr += e.length
