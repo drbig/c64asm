@@ -18,7 +18,7 @@ class AsmOperand
   attr_reader :op, :mode, :arg
 
   def initialize(op, arg = false, mod = false)
-    raise AsmOperandError, 'No such operand' unless OPCODES.has_key? op
+    raise AsmOperandError, 'No such operand' unless AsmConsts::OPCODES.has_key? op
 
     @op = op
     @mode = false
@@ -27,7 +27,7 @@ class AsmOperand
     @label = false
     @ready = false
 
-    opcode = OPCODES[op]
+    opcode = AsmConsts::OPCODES[op]
 
     # mode resolution
     if opcode.has_key? :n
@@ -63,6 +63,7 @@ class AsmOperand
       unless (has_a = opcode.has_key? :a) or opcode.has_key? :r
         raise AsmOperandError, 'Used with label but no :a or :r modes'
       end
+
       @mode = has_a ? :a : :r
       @label = arg
     end
@@ -70,6 +71,7 @@ class AsmOperand
     # argument checking
     if @mode and not @label
       raise AsmOperandError, 'Invalid argument' unless validate
+
       @ready = true
     end
 
@@ -78,7 +80,7 @@ class AsmOperand
   end
 
   # create addressing mode methods
-  ADDRMODES.keys.each do |mode|
+  AsmConsts::ADDRMODES.keys.each do |mode|
     class_eval "def #{mode}(arg, mod = nil); check_mode(:#{mode}, arg, mod); end"
   end
 
@@ -88,13 +90,9 @@ class AsmOperand
   def resolve(arg)
     return true unless @label
 
-    if @mod
-      @arg = arg.send(*@mod)
-    else
-      @arg = arg
-    end
-
+    @mod ? @arg = arg.send(*@mod) : @arg = arg
     raise AsmOperandError, 'Invalid argument' unless validate
+
     @ready = true
   end
 
@@ -118,12 +116,12 @@ class AsmOperand
 
     unless @mode == :n
       if @label
-        source += ADDRMODES[@mode][:src] % label
+        source += AsmConsts::ADDRMODES[@mode][:src] % label
       else
         if @mode == :r
           source += ' *%+d' % @arg.to_s
         else
-          source += ADDRMODES[@mode][:src] % ('$' + @arg.to_s(16))
+          source += AsmConsts::ADDRMODES[@mode][:src] % ('$' + @arg.to_s(16))
         end
       end
     end
@@ -131,13 +129,15 @@ class AsmOperand
     source
   end
 
-  def length; @mode ? 1 + ADDRMODES[@mode][:len] : false; end
+  def length; @mode ? 1 + AsmConsts::ADDRMODES[@mode][:len] : false; end
 
   def to_s; "<Operand: #{to_source}>"; end
 
   def to_a
     return [] unless @ready
-    bytes = [OPCODES[@op][@mode]]
+
+    bytes = [AsmConsts::OPCODES[@op][@mode][:byte]]
+
     if @arg and @arg > 255
       bytes += [@arg.lsbyte, @arg.msbyte]
     elsif @arg
@@ -149,26 +149,24 @@ class AsmOperand
 
   def to_binary
     return '' unless @ready
-    if @mode == :r
-      to_a.pack('Cc')
-    else
-      to_a.pack('C*')
-    end
+
+    @mode == :r ? to_a.pack('Cc') : to_a.pack('C*')
   end
 
   private
   def check_mode(mode, arg, mod)
     raise AsmOperandError, 'Operand was ready' if @ready
-    raise AsmOperandError, 'No such mode' unless OPCODES[@op].has_key? mode
+    raise AsmOperandError, 'No such mode' unless AsmConsts::OPCODES[@op].has_key? mode
 
     @mode = mode
     @arg = arg
     @mod = mod
 
-    if arg.instance_of? Fixnum
+    case arg
+    when Fixnum
       raise AsmOperandError, 'Invalid argument' unless validate
       @ready = true
-    elsif arg.instance_of? Symbol
+    when Symbol
       raise AsmOperandError, 'Label used with wrong mode' unless @mode.to_s[0] == 'a'
       @label = arg
     else
@@ -188,7 +186,10 @@ class AsmOperand
     elsif [ :<, :> ].member? @mod
       # this two modifiers make sense only for :d addressing mode
       if not @mode or (@mode and @mode != :d)
-        raise AsmOperandError, 'Byte modifier used with non-direct addressing mode' unless OPCODES[@op].has_key? :d
+        unless AsmConsts::OPCODES[@op].has_key? :d
+          raise AsmOperandError, 'Byte modifier used with non-direct addressing mode'
+        end
+
         @mode = :d
       end
 
@@ -223,6 +224,7 @@ class AsmLabel < AsmNop
 
   def initialize(name)
     raise AsmNopError, 'Label name must be a symbol' unless name.instance_of? Symbol
+
     @name = name
   end
 
@@ -237,6 +239,7 @@ class AsmAlign < AsmNop
     unless addr.instance_of? Fixnum and (addr >= 0 and addr <= 65535)
       raise AsmNopError, 'Alignment address has to be in range $0 - $ffff'
     end
+
     @addr = addr
   end
 
@@ -244,62 +247,100 @@ class AsmAlign < AsmNop
   def to_s; "<Align: $#{@addr.to_s(16)}"; end
 end
 
+class AsmDataError < Exception; end
 class AsmData < AsmNop
   attr_reader :data, :mode, :length
 
   def initialize(data, mode = :default)
     case data
     when String
-      raise AsmNopError, 'Unimplemented mode' unless [ :default ].member? mode
-      @length = data.bytesize
-    when Array
-      raise AsmNopError, 'Unimplemented mode' unless [ :default, :unsigned ].member? mode
+      raise AsmNopError, 'Unimplemented mode' unless [ :default, :screen ].member? mode
       @length = data.length
+    when Array
+      raise AsmNopError, 'Unimplemented mode' unless [ :default, :word ].member? mode
+      @length = mode == :word ? 2 * data.length : data.length
     end
 
     @data = data
     @mode = mode
+
+    validate
   end
 
   def to_s
     string = '<Data: '
-    if @data.instance_of? String
+
+    case @data
+    when String
       string += '"' + (@data.length > 16 ? @data.slice(0, 16) + '...' : @data) + '"'
-    elsif @data.instance_of? Array
+    when Array
       slice = @data.length > 8 ? @data.slice(0, 8) : @data
       string += slice.collect{|e| '$' + e.to_s(16)}.join(',')
       string += '...' if slice.length != @data.length
-    else
-      string += '?'
     end
+
     if @mode != :default
       string += " (#{mode})"
     end
+
     string += '>'
   end
 
   def to_source
-    if @data.instance_of? String
-      ".screen \"#{@data}\""
-    elsif @data.instance_of? Array
+    case @data
+    when String
+      case @mode
+      when :default
+        ".text \"#{@data}\""
+      when :screen
+        ".screen \"#{@data}\""
+      end
+    when Array
       case @mode
       when :default
         ".byte #{@data.collect{|e| '$' + e.to_s(16)}.join(',')}"
-      when :unsigned
-        ".ubyte #{@data.collect{|e| '$' + e.to_s(16)}.join(',')}"
+      when :word
+        ".word #{@data.collect{|e| '$' + e.to_s(16)}.join(',')}"
       end
     end
   end
 
   def to_binary
-    if @data.instance_of? String
-      @data.bytes.to_a.pack('C*')
-    elsif @data.instance_of? Array
+    case @data
+    when String
+      case @mode
+      when :default
+        @data.each_codepoint.to_a.collect{|p| C64Consts::PETSCII[p]}.pack('C*')
+      when :screen
+        @data.each_codepoint.to_a.collect{|p| C64Consts::CHARMAP[p]}.pack('C*')
+      end
+    when Array
       case @mode
       when :default
         @data.pack('C*')
-      when :unsigned
-        @data.pack('c*')
+      when :word
+        @data.collect{|e| [e.lsbyte, e.msbyte]}.flatten.pack('C*')
+      end
+    end
+  end
+
+  private
+  def validate
+    case @data
+    when String
+      case @mode
+      when :default
+        @data.each_codepoint{|p| raise AsmDataError, 'Invalid data' unless C64Consts::PETSCII.has_key? p}
+      when :screen
+        @data.upcase!
+        @data.each_codepoint{|p| raise AsmDataError, 'Invalid data' unless C64Consts::CHARMAP.has_key? p}
+      end
+    when Array
+      case @mode
+      when :default
+        @data.each{|e| raise AsmDataError, 'Invalid data' unless (e >= 0 and e <= 255)}
+      when :word
+        @data.each{|e| raise AsmDataError, 'Invalid data' unless (e >= 0 and e <= 65535)}
       end
     end
   end
@@ -370,7 +411,7 @@ class AsmMacro
 
   def method_missing(name, *args, &blk)
     name = :and if name == :ane
-    if OPCODES.has_key? name
+    if AsmConsts::OPCODES.has_key? name
       begin
         if args.length == 0
           op = AsmOperand.new(name)

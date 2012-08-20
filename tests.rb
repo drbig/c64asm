@@ -239,10 +239,10 @@ demo = AsmMacro.new do
   end.call)
 
   label :textdata
-  [ "#THIS IS A#",
+  [ "#this is a test#",
     "#",
-    "TEST#",
-    "OR SOMETHING#" ].each{|s| data s}
+    "of some data test#",
+    "test @ test.com 123#" ].each{|s| data s, :screen}
   data [0xff]
 
   align   0x4000
