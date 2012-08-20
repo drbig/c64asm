@@ -50,8 +50,6 @@ class C64Basic
 
       if l == lines.last
         code.push(AsmData.new([0], :word))
-      else
-        code.push(AsmData.new([addr+2], :word))
       end
     end
    
