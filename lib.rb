@@ -106,8 +106,6 @@ class C64Basic
         addr += 1
         state = :out if c == '"'
       end
-
-      puts "#{c} #{addr} #{bytes} #{token}"
     end
 
     unless token.empty?

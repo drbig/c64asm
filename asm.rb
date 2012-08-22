@@ -107,6 +107,8 @@ class AsmOperand
           label = '<' + @label.to_s
         when :msbyte
           label = '>' + @label.to_s
+        else
+          label = @label.to_s + @mod.join
         end
       else
         label = @label.to_s
@@ -166,7 +168,12 @@ class AsmOperand
       raise AsmOperandError, 'Invalid argument' unless validate
       @ready = true
     when Symbol
-      raise AsmOperandError, 'Label used with wrong mode' unless @mode.to_s[0] == 'a'
+      modec = @mode.to_s[0]
+      if @mod
+        raise AsmOperandError, 'Label used with wrong mode' unless (modec == 'a') or (modec == 'd')
+      else
+        raise AsmOperandError, 'Label used with wrong mode' unless modec == 'a'
+      end
       @label = arg
     else
       raise AsmOperandError, 'Unhandled argument type'
@@ -182,6 +189,8 @@ class AsmOperand
 
     if @mod.instance_of? Fixnum
       @mod = [ :+, @mod ]
+    elsif @mod.instance_of? Array and @mod.length == 2 and [ :/, :*, :<<, :>>, :& , :| ].member? @mod.first
+      raise AsmOperandError, 'Arithmetic argument has to be a fixnum' unless @mod[1].instance_of? Fixnum
     elsif [ :<, :> ].member? @mod
       # this two modifiers make sense only for :d addressing mode
       if not @mode or (@mode and @mode != :d)
