@@ -5,29 +5,42 @@ require 'logger'
 require 'c64asm/data'
 require 'c64asm/basic'
 
+# Fixnum monkey-patches
 class Fixnum
+  # Return the least significant byte
   def ls_byte; self & 255; end
+
+  # Return the most significant byte
   def ms_byte; self >> 8; end
 end
 
+# Our namespace
 module C64Asm
   attr_accessor :logger
+
+  # Default logging is verbose and to STDERR
   @logger = Logger.new(STDERR)
   @logger.level = Logger::DEBUG
   @logger.formatter = lambda do |s, d, p, m|
     "#{d.strftime('%H:%M:%S.%L')} #{s.to_s.ljust(7)} -- #{m}\n"
   end
 
+  # Log a message if we have a logger present
   def self.log(level, msg)
     @logger.send(level, msg) if @logger
   end
 
+  # General C64Asm exception class
   class Error < Exception; end
 
+  # Operand error
   class OperandError < Error; end
+
+  # Operand, the most important building block
   class Operand
     attr_reader :op, :mode, :arg, :label
 
+    # Setup and validate an operand
     def initialize(op, arg = false, mod = false)
       raise OperandError, 'No such operand' unless OP_CODES.has_key? op
 
@@ -98,8 +111,10 @@ module C64Asm
       class_eval "def #{mode}(arg, mod = nil); check_mode(:#{mode}, arg, mod); end"
     end
 
+    # Do we have all data in raw form
     def ready?; @ready; end
 
+    # Resolve addresses, if needed
     def resolve(arg)
       return true unless @label
 
@@ -109,6 +124,7 @@ module C64Asm
       @ready = true
     end
 
+    # Turn the operand into source code string
     def to_source
       source = @op.to_s
 
@@ -144,10 +160,14 @@ module C64Asm
       source
     end
 
+    # Return the length of the additional operand in machine code bytes, or false
     def length; @mode ? 1 + ADDR_MODES[@mode][:len] : false; end
 
+    # Return pretty string representation of the operand
     def to_s; "<Operand: #{to_source}>"; end
 
+    # Turn the operand into a byte array
+    # Won't work if we haven't got all the necessary data yet.
     def to_a
       return [] unless @ready
 
@@ -162,6 +182,8 @@ module C64Asm
       end
     end
 
+    # Turn the operand into a byte string
+    # Won't work if we haven't got all the necessary data yet.
     def to_binary
       return '' unless @ready
 
@@ -169,6 +191,7 @@ module C64Asm
     end
 
     private
+    # Validate addressing mode
     def check_mode(mode, arg, mod)
       raise OperandError, 'Operand was ready' if @ready
       raise OperandError, 'No such mode' unless OP_CODES[@op].has_key? mode
@@ -198,6 +221,7 @@ module C64Asm
       self
     end
 
+    # Validate modifier
     def check_mod
       raise OperandError, 'Modifier used with non-label argument' unless @label
 
@@ -221,6 +245,7 @@ module C64Asm
       end
     end
 
+    # Low-level validation
     def validate
       if (@mode == :n and @arg) or \
         (@mode == :r and not (@arg >= -128 and @arg <= 127)) or \
@@ -233,32 +258,55 @@ module C64Asm
     end
   end
 
+  # Nop error
   class NopError < Error; end
+
+  # Nops don't translate to machine code
+  # Things like labels, align statements etc.
   class Nop
+    # No need to resolve anything here
     def ready?; true; end
+
+    # Not a label
     def label; false; end
+
+    # We don't generate machine code
     def to_a; []; end
+
+    # We don't generate machine code
     def to_binary; ''; end
   end
 
+  # Label error
   class LabelError < NopError; end
+
+  # Label references an address
+  # Which might as well be not know at the time of declaration.
   class Label < Nop
     attr_reader :name
 
+    # Create new label nop
     def initialize(name)
       raise LabelError, 'Label name must be a symbol' unless name.instance_of? Symbol
 
       @name = name
     end
 
+    # Return source code representation
     def to_source; @name.to_s; end
+
+    # Return pretty string representation
     def to_s; "<Label: #{@name}>"; end
   end
 
+  # Alignment error
   class AlignError < NopError; end
+
+  # Align sets the linker current address
   class Align < Nop
     attr_reader :addr
 
+    # Create new alignment nop
     def initialize(addr)
       unless addr.instance_of? Fixnum and (addr >= 0 and addr <= 65535)
         raise AlignError, 'Alignment address has to be in range $0 - $ffff'
@@ -267,14 +315,22 @@ module C64Asm
       @addr = addr
     end
 
+    # Return source code representation
     def to_source; "* = $#{@addr.to_s(16)}"; end
+
+    # Return pretty string representation
     def to_s; "<Align: $#{@addr.to_s(16)}"; end
   end
 
+  # Data error
   class DataError < NopError; end
+
+  # Data is a bunch of bytes
   class Data < Nop
     attr_reader :data, :mode, :length
 
+    # Create new data nop
+    # Handles a couple of input modes.
     def initialize(data, mode = :default)
       case data
       when String
@@ -291,6 +347,7 @@ module C64Asm
       validate
     end
 
+    # Return pretty string representation
     def to_s
       string = '<Data: '
 
@@ -310,6 +367,7 @@ module C64Asm
       string += '>'
     end
 
+    # Return source code representation
     def to_source
       case @data
       when String
@@ -329,6 +387,7 @@ module C64Asm
       end
     end
 
+    # Turn data into a byte string
     def to_binary
       case @data
       when String
@@ -349,6 +408,7 @@ module C64Asm
     end
 
     private
+    # Validate data
     def validate
       case @data
       when String
@@ -369,16 +429,22 @@ module C64Asm
     end
   end
 
+  # Block error
   class BlockError < Error; end
+
+  # Block is a raw machine code block
+  # Implements the non-magic of linking, aka symbol resolution.
   class Block < Array
     attr_reader :labels, :linked
 
+    # Create new block
     def initialize
       @labels = {}
       @linked = false
       @chunks = {}
     end
 
+    # Link resolves symbols and relative jumps given the origin
     def link(origin = 0x1000)
       raise BlockError, 'Invalid origin' unless (origin >= 0 and origin <= 65535)
 
@@ -391,30 +457,36 @@ module C64Asm
         origin = felem.addr
       end
 
-      endaddr = _linker_pass(origin, :one)
-      _linker_pass(origin, :two)
+      endaddr = linker_pass(origin, :one)
+      linker_pass(origin, :two)
 
       @linked
     end
 
+    # Return source code representation
     def to_source
       (['.block'] + collect{|e| e.to_source} + ['.bend']).flatten
     end
 
+    # Return pretty string representation
     def to_s; "<Block #{length}>"; end
 
+    # Turn block into byte string
     def to_binary
       link unless @linked
-      [@linked[0].ls_byte, @linked[0].ms_byte].pack('CC') + _binary_pass
+      [@linked[0].ls_byte, @linked[0].ms_byte].pack('CC') + binary_pass
     end
 
+    # Return verbose representation
     def dump
       link unless @linked
-      lines = _dump
+      lines = dump_pass
       lines.shift
       lines
     end
 
+    # Write block to a given file in the given format
+    # This will probably overwrite the target file without warning.
     def write!(fname, mode = 'w', what = :prg)
       File.open(fname, mode) do |fd|
         case what
@@ -430,7 +502,8 @@ module C64Asm
       end
     end
 
-    def _dump
+    # Internal method, treat as private
+    def dump_pass
       addr = @linked.first
       lines = []
 
@@ -459,8 +532,8 @@ module C64Asm
           line += ".. .. ..   \t#{e.to_source}"
           addr += e.length
         when Block
-          addr, _lines = e._dump
-          lines += _lines
+          addr, lines_passed = e.dump_pass
+          lines += lines_passed
           block = true
         end
 
@@ -471,7 +544,8 @@ module C64Asm
       [addr, lines]
     end
 
-    def _binary_pass
+    # Internal method, treat as private
+    def binary_pass
       binary = ''
       each do |e|
         case e
@@ -484,14 +558,15 @@ module C64Asm
         when Operand
           binary += e.to_binary
         when Block
-          binary += e._binary_pass
+          binary += e.binary_pass
         end
       end
 
       binary
     end
 
-    def _linker_pass(addr, pass)
+    # Internal method, treat as private
+    def linker_pass(addr, pass)
       @labels = {} if pass == :one
       origin = addr
 
@@ -534,7 +609,7 @@ module C64Asm
 
           addr += e.length
         when Block
-          addr = e._linker_pass(addr, pass)
+          addr = e.linker_pass(addr, pass)
         else
           C64Asm.log :error, "Invalid element #{e.to_s} in Block"
           raise BlockError
@@ -546,10 +621,15 @@ module C64Asm
     end
   end
 
+  # Macro error
   class MacroError < Error; end
+
+  # Macro is the top-level building block
   class Macro
     attr_reader :variables
 
+    # Create new macro
+    # You can supply a hash of default variables that will be available within the block.
     def initialize(vars = {}, &blk)
       @variables = vars
       @procs = []
@@ -557,10 +637,13 @@ module C64Asm
       @procs.push(blk) if blk
     end
 
+    # Add more code to a block
     def add_code(&blk); @procs.push(blk); end
 
+    # Return pretty string representation
     def to_s; "<Macro #{@procs.length} #{@variables.to_s}>"; end
 
+    # Return a block from the macro given variables
     def call(vars = {})
       return Block.new if @procs.empty?
 
@@ -579,6 +662,7 @@ module C64Asm
     end
 
     private
+    # Add alignment nop
     def align(addr)
       begin
         @code.push(Align.new(addr))
@@ -588,6 +672,7 @@ module C64Asm
       addr
     end
 
+    # Add label nop
     def label(name)
       parse_warn "Redefinition of label #{name}" if @labels.member? name
       begin
@@ -599,6 +684,7 @@ module C64Asm
       name
     end
 
+    # Add data nop
     def data(arg, mode = :default)
       begin
         data = Data.new(arg, mode)
@@ -609,18 +695,21 @@ module C64Asm
       data.length
     end
 
+    # Add block nop
     def block(stuff)
       parse_error 'Block not an instance of Block' unless stuff.instance_of? Block
       @code.push(stuff)
       stuff.length
     end
 
+    # Add more code
     def insert(stuff)
       parse_error 'Block not an instance of Block' unless stuff.instance_of? Block
       @code += stuff
       stuff.length
     end
 
+    # The DSL happens here
     def method_missing(name, *args, &blk)
       name = :and if name == :ane
       if OP_CODES.has_key? name
@@ -644,16 +733,19 @@ module C64Asm
       end
     end
 
+    # General logging helper
     def say(level, msg)
       from = caller[2].match(/.*?\:\d+/)[0]
       C64Asm.log level, "(#{from}) #{msg}"
     end
 
+    # Parse error logging helper
     def parse_error(msg)
       say :error, msg
       raise MacroError
     end
 
+    # Parse error logging helper
     def parse_warn(msg); say :warn, msg; end
   end
 end

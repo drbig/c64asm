@@ -2,6 +2,7 @@
 # See LICENSE.txt for licensing information.
 
 module C64Asm
+  # Known addressing modes
   ADDR_MODES = {
     :n => { :src => '', :len => 0 },
     :d => { :src => ' #%s', :len => 1},
@@ -18,6 +19,7 @@ module C64Asm
     :e => { :src => '', :len => 1}
   }
 
+  # Known operands
   OP_CODES = {
     :adc=>{:d=>{:byte=>105, :cycles=>2},
            :z=>{:byte=>101, :cycles=>3},
@@ -170,6 +172,7 @@ module C64Asm
     :txs=>{:n=>{:byte=>154, :cycles=>2}},
     :tya=>{:n=>{:byte=>152, :cycles=>2}}}
 
+  # Character map
   CHAR_MAP = {
     64=>0, 65=>1, 66=>2, 67=>3, 68=>4, 69=>5, 70=>6, 71=>7, 72=>8, 73=>9, 74=>10, 75=>11, 76=>12,
     77=>13, 78=>14, 79=>15, 80=>16, 81=>17, 82=>18, 83=>19, 84=>20, 85=>21, 86=>22, 87=>23, 88=>24,
@@ -179,6 +182,7 @@ module C64Asm
     60=>60, 61=>61, 62=>62, 63=>63
   }
 
+  # PETSCII map
   PETSCII = {
     32=>32, 160=>224, 38=>38, 33=>33, 34=>34, 35=>35, 36=>36, 37=>37, 39=>39, 40=>40, 41=>41, 42=>42,
     43=>43, 44=>44, 45=>45, 46=>46, 47=>47, 48=>48, 49=>49, 50=>50, 51=>51, 52=>52, 53=>53, 54=>54,
@@ -201,6 +205,7 @@ module C64Asm
     9701=>223
   }
 
+  # Basic commands
   BASIC = {
     "END"=>128, "FOR"=>129, "NEXT"=>130, "DATA"=>131, "INPUT#"=>132, "INPUT"=>133, "DIM"=>134, "READ"=>135,
     "LET"=>136, "GOTO"=>137, "RUN"=>138, "IF"=>139, "RESTORE"=>140, "GOSUB"=>141, "RETURN"=>142, "REM"=>143,

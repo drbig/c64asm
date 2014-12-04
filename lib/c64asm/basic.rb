@@ -7,10 +7,14 @@ require 'c64asm/data'
 module C64Asm
   class Error < Exception; end
 
+  # C64 Basic error
   class BasicError < Error; end
+
+  # C64 Basic block
   class Basic
     attr_reader :basic, :code
 
+    # Create a new C64 basic block
     def initialize(program, origin = 0x801, align = true)
       raise BasicError, 'Program has to be a string' unless program.instance_of? String
       raise BasicError, 'Origin has to be a fixnum' unless origin.instance_of? Fixnum
@@ -23,9 +27,11 @@ module C64Asm
       @code.push(Data.new(parse(origin)))
     end
 
+    # Return a pretty string representation
     def to_s; "<Basic: #{@basic.lines.to_a.length}>"; end
 
     private
+    # Parse basic code string given the origin address
     def parse(addr)
       state = :nextline
       bytes = []
