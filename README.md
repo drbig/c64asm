@@ -14,12 +14,15 @@ Features:
 Bugs:
 - No test suite
 - I believe my 'scrape opcodes table' approach missed some edge cases
+- Half-assed doc strings. I didn't touch this for the last two years, sorry.
 
 Todo:
 - More C64 helpers, e.g. bank switching helpers and a hash of named addresses
 - Not far away from adding a basic CPU simulator (note: this is far from an emulator)
 
 *I've written the bulk of it more than two years ago. I got to a rather cosy state of overall functionality, but I believe it misses some edge-cases. Please feel free to go nuts hacking it!*
+
+I do appreciate feedback.
 
 # Showcase
 
