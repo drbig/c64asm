@@ -1,5 +1,8 @@
-module AsmConsts
-  ADDRMODES = {
+# encoding: utf-8
+# See LICENSE.txt for licensing information.
+
+module C64Asm
+  ADDR_MODES = {
     :n => { :src => '', :len => 0 },
     :d => { :src => ' #%s', :len => 1},
     :z => { :src => ' %s', :len => 1},
@@ -15,7 +18,7 @@ module AsmConsts
     :e => { :src => '', :len => 1}
   }
 
-  OPCODES = {
+  OP_CODES = {
     :adc=>{:d=>{:byte=>105, :cycles=>2},
            :z=>{:byte=>101, :cycles=>3},
            :zx=>{:byte=>117, :cycles=>4},
@@ -120,9 +123,9 @@ module AsmConsts
            :a=>{:byte=>13, :cycles=>4},
            :ax=>{:byte=>29, :cycles=>4, :page=>true},
            :ay=>{:byte=>25, :cycles=>4, :page=>true}},
-           :pha=>{:n=>{:byte=>72, :cycles=>3}},
-           :php=>{:n=>{:byte=>8, :cycles=>3}},
-           :pla=>{:n=>{:byte=>104, :cycles=>4}},
+    :pha=>{:n=>{:byte=>72, :cycles=>3}},
+    :php=>{:n=>{:byte=>8, :cycles=>3}},
+    :pla=>{:n=>{:byte=>104, :cycles=>4}},
     :plp=>{:n=>{:byte=>40, :cycles=>4}},
     :rol=>{:z=>{:byte=>38, :cycles=>5},
            :zx=>{:byte=>54, :cycles=>6},
@@ -144,8 +147,8 @@ module AsmConsts
            :a=>{:byte=>237, :cycles=>4},
            :ax=>{:byte=>253, :cycles=>4, :page=>true},
            :ay=>{:byte=>233, :cycles=>4, :page=>true}},
-           :sec=>{:n=>{:byte=>56, :cycles=>2}},
-           :sed=>{:n=>{:byte=>248, :cycles=>2}},
+    :sec=>{:n=>{:byte=>56, :cycles=>2}},
+    :sed=>{:n=>{:byte=>248, :cycles=>2}},
     :sei=>{:n=>{:byte=>120, :cycles=>2}},
     :sta=>{:z=>{:byte=>133, :cycles=>3},
            :zx=>{:byte=>149, :cycles=>4},
@@ -166,10 +169,8 @@ module AsmConsts
     :txa=>{:n=>{:byte=>138, :cycles=>2}},
     :txs=>{:n=>{:byte=>154, :cycles=>2}},
     :tya=>{:n=>{:byte=>152, :cycles=>2}}}
-end
 
-module C64Consts
-  CHARMAP = {
+  CHAR_MAP = {
     64=>0, 65=>1, 66=>2, 67=>3, 68=>4, 69=>5, 70=>6, 71=>7, 72=>8, 73=>9, 74=>10, 75=>11, 76=>12,
     77=>13, 78=>14, 79=>15, 80=>16, 81=>17, 82=>18, 83=>19, 84=>20, 85=>21, 86=>22, 87=>23, 88=>24,
     89=>25, 90=>26, 91=>27, 163=>28, 93=>29, 8593=>30, 8592=>31, 32=>32, 33=>33, 34=>34, 35=>35,
