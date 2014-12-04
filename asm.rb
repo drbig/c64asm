@@ -34,6 +34,9 @@ class AsmOperand
       # all immediates
       @mode = :n
       @ready = true
+    elsif not arg and opcode.has_key? :e
+      @mode = :e
+      @ready = true
     elsif opcode.keys.length == 1
       # branching and jsr
       @mode = opcode.keys.first
@@ -115,7 +118,7 @@ class AsmOperand
       end
     end
 
-    unless @mode == :n
+    unless @mode == :n or @mode == :e
       if @label
         source += AsmConsts::ADDRMODES[@mode][:src] % label
       else

@@ -12,7 +12,7 @@ module AsmConsts
     :ay => { :src => ' %s,y', :len => 2},
     :ar => { :src => ' (%s)', :len => 2},
     :r => { :src => ' %s', :len => 1},
-    :e => { :src => ' %s', :len => 1}
+    :e => { :src => '', :len => 1}
   }
 
   OPCODES = {
