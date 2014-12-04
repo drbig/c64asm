@@ -1,4 +1,14 @@
-%w{ pp open-uri rubygems nokogiri }.each{|g| require g}
+#!/usr/bin/env ruby
+# coding: utf-8
+# See LICENSE.txt for licensing information.
+
+# I assume I've used this to get the contents of what is now lib/data.rb.
+# Data-driven assembly ftw!
+#
+# Honestly, I leave it as close to as it were two years ago as I can.
+# Perlish stuff.
+
+%w{ pp open-uri nokogiri }.each{|g| require g}
 
 MODES = %w{ n d z zx zy zxr zyr a ax ay ar r e }
 
