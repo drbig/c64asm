@@ -99,6 +99,14 @@ And an old demo screenshot, source not distributed 'cause it sucks, but it does 
 
 And it moves and stuff (no sound though), you can grab the .prg [here](https://raw.github.com/drbig/c64asm/master/examples/04.prg) and see the whole thing. The big ugly numbers are sprites - I assume the point was to make them move and be interesting, oh well.
 
+Also my raster bar code is flawed.
+
+## Additional notes
+
+First compiler. Also I believe that'd be my second/third non-trivial Ruby project. I'm also by no means a C64 hacker, but I appreciate the platform very much. It was fun, even this get-this-public-now work.
+
+This project has been inspired by a blog post of person that did a NES assembler in Common Lisp (kudos to the author!).
+
 ## Contributing
 
 Follow the usual GitHub development model:
