@@ -1,0 +1,4 @@
+*.prg
+doc/*
+pkg/*
+.yardoc/*
