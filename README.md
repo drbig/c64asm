@@ -1,4 +1,4 @@
-# c64asm [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://rubydoc.info/gems/c64asm/frames)
+# c64asm [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/drbig/c64asm/master)
 
 A MOS6502 assembler as a Ruby DLS, with focus on the Commodore 64.
 
