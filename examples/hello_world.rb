@@ -6,9 +6,9 @@ $LOAD_PATH.unshift(File.dirname(__FILE__) + '/../lib')
 require 'c64asm'
 
 hello_world = C64Asm::Macro.new do
-  block C64Asm::Basic.new('10 sys 49153').code
+  block C64Asm::Basic.new('10 sys 49152').code
 
-  align 0xc000    # 49153
+  align 0xc000    # 49152
   jsr 0xe544      # clear
   ldx.d 0         # string index
   label :load
