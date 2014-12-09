@@ -1,4 +1,4 @@
-# c64asm [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/drbig/c64asm/master)
+# c64asm [![Gem](http://img.shields.io/gem/v/c64asm.svg)](https://rubygems.org/gems/c64asm) [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://www.rubydoc.info/github/drbig/c64asm/master)
 
 A MOS6502 assembler as a Ruby DSL, with focus on the Commodore 64.
 
@@ -24,7 +24,7 @@ Todo:
 
 I do appreciate feedback.
 
-# Showcase
+## Showcase
 
 Got the gem, in the examples folder:
 
